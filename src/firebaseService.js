@@ -6,14 +6,31 @@ import {
   doc, 
   query, 
   where,
-  orderBy 
+  orderBy,
+  setDoc,
+  getDoc
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, auth } from './firebase';
+
+// Get current user ID or use a default one if not logged in
+const getCurrentUserId = () => {
+  const currentUser = auth.currentUser;
+  return currentUser ? currentUser.uid : 'default_user';
+};
 
 // Revenue operations
 export const addRevenue = async (revenueData) => {
   try {
-    const docRef = await addDoc(collection(db, 'revenues'), {
+    const userId = getCurrentUserId();
+    const userDocRef = doc(db, 'users', userId);
+    
+    // Ensure the user document exists
+    const userDoc = await getDoc(userDocRef);
+    if (!userDoc.exists()) {
+      await setDoc(userDocRef, { email: auth.currentUser?.email || 'default@example.com' });
+    }
+    
+    const docRef = await addDoc(collection(db, 'users', userId, 'revenues'), {
       ...revenueData,
       timestamp: new Date().toISOString()
     });
@@ -26,8 +43,9 @@ export const addRevenue = async (revenueData) => {
 
 export const getRevenues = async () => {
   try {
+    const userId = getCurrentUserId();
     const q = query(
-      collection(db, 'revenues'),
+      collection(db, 'users', userId, 'revenues'),
       orderBy('date', 'desc')
     );
     const querySnapshot = await getDocs(q);
@@ -43,7 +61,8 @@ export const getRevenues = async () => {
 
 export const deleteRevenue = async (id) => {
   try {
-    await deleteDoc(doc(db, 'revenues', id));
+    const userId = getCurrentUserId();
+    await deleteDoc(doc(db, 'users', userId, 'revenues', id));
   } catch (error) {
     console.error('Error deleting revenue: ', error);
     throw error;
@@ -53,7 +72,16 @@ export const deleteRevenue = async (id) => {
 // Expenses operations
 export const addExpense = async (expenseData) => {
   try {
-    const docRef = await addDoc(collection(db, 'expenses'), {
+    const userId = getCurrentUserId();
+    const userDocRef = doc(db, 'users', userId);
+    
+    // Ensure the user document exists
+    const userDoc = await getDoc(userDocRef);
+    if (!userDoc.exists()) {
+      await setDoc(userDocRef, { email: auth.currentUser?.email || 'default@example.com' });
+    }
+    
+    const docRef = await addDoc(collection(db, 'users', userId, 'expenses'), {
       ...expenseData,
       timestamp: new Date().toISOString()
     });
@@ -66,8 +94,9 @@ export const addExpense = async (expenseData) => {
 
 export const getExpenses = async () => {
   try {
+    const userId = getCurrentUserId();
     const q = query(
-      collection(db, 'expenses'),
+      collection(db, 'users', userId, 'expenses'),
       orderBy('date', 'desc')
     );
     const querySnapshot = await getDocs(q);
@@ -83,9 +112,10 @@ export const getExpenses = async () => {
 
 export const deleteExpense = async (id) => {
   try {
-    await deleteDoc(doc(db, 'expenses', id));
+    const userId = getCurrentUserId();
+    await deleteDoc(doc(db, 'users', userId, 'expenses', id));
   } catch (error) {
     console.error('Error deleting expense: ', error);
     throw error;
   }
-}; 
+};
