@@ -1,3 +1,4 @@
+import { db } from './firebase';
 import { 
   collection, 
   addDoc, 
@@ -6,56 +7,69 @@ import {
   doc, 
   query, 
   where,
-  orderBy 
+  getDoc
 } from 'firebase/firestore';
-import { db } from './firebase';
 
-// Revenue operations
-export const addRevenue = async (revenueData) => {
+// Product operations
+export const addProduct = async (userId, productData) => {
   try {
-    const docRef = await addDoc(collection(db, 'revenues'), {
-      ...revenueData,
-      timestamp: new Date().toISOString()
+    const docRef = await addDoc(collection(db, `users/${userId}/products`), {
+      ...productData,
+      createdAt: new Date().toISOString()
     });
     return docRef.id;
   } catch (error) {
-    console.error('Error adding revenue: ', error);
+    console.error('Error adding product: ', error);
     throw error;
   }
 };
 
-export const getRevenues = async () => {
+export const getProducts = async (userId) => {
   try {
-    const q = query(
-      collection(db, 'revenues'),
-      orderBy('date', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const querySnapshot = await getDocs(collection(db, `users/${userId}/products`));
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   } catch (error) {
-    console.error('Error getting revenues: ', error);
+    console.error('Error getting products: ', error);
     throw error;
   }
 };
 
-export const deleteRevenue = async (id) => {
+// Sales operations
+export const recordSale = async (userId, saleData) => {
   try {
-    await deleteDoc(doc(db, 'revenues', id));
+    const productDoc = await getDoc(doc(db, `users/${userId}/products/${saleData.productId}`));
+    const product = productDoc.data();
+    
+    const totalProfit = (product.price - product.cost) * saleData.quantity;
+    
+    const docRef = await addDoc(collection(db, `users/${userId}/sales`), {
+      ...saleData,
+      totalProfit,
+      date: new Date().toISOString()
+    });
+    return docRef.id;
   } catch (error) {
-    console.error('Error deleting revenue: ', error);
+    console.error('Error recording sale: ', error);
+    throw error;
+  }
+};
+
+export const getSales = async (userId) => {
+  try {
+    const querySnapshot = await getDocs(collection(db, `users/${userId}/sales`));
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error('Error getting sales: ', error);
     throw error;
   }
 };
 
 // Expenses operations
-export const addExpense = async (expenseData) => {
+export const addExpense = async (userId, expenseData) => {
   try {
-    const docRef = await addDoc(collection(db, 'expenses'), {
+    const docRef = await addDoc(collection(db, `users/${userId}/expenses`), {
       ...expenseData,
-      timestamp: new Date().toISOString()
+      date: new Date().toISOString()
     });
     return docRef.id;
   } catch (error) {
@@ -64,28 +78,39 @@ export const addExpense = async (expenseData) => {
   }
 };
 
-export const getExpenses = async () => {
+export const getExpenses = async (userId) => {
   try {
-    const q = query(
-      collection(db, 'expenses'),
-      orderBy('date', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const querySnapshot = await getDocs(collection(db, `users/${userId}/expenses`));
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   } catch (error) {
     console.error('Error getting expenses: ', error);
     throw error;
   }
 };
 
-export const deleteExpense = async (id) => {
+// Summary operations
+export const calculateMonthlySummary = async (userId, monthYear) => {
   try {
-    await deleteDoc(doc(db, 'expenses', id));
+    const [sales, expenses] = await Promise.all([
+      getSales(userId),
+      getExpenses(userId)
+    ]);
+    
+    const filteredSales = sales.filter(sale => sale.date.startsWith(monthYear));
+    const filteredExpenses = expenses.filter(expense => expense.date.startsWith(monthYear));
+    
+    const totalRevenue = filteredSales.reduce((sum, sale) => sum + sale.totalProfit, 0);
+    const totalExpenses = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+    const totalProfit = totalRevenue - totalExpenses;
+    
+    return {
+      totalRevenue,
+      totalExpenses,
+      totalProfit,
+      createdAt: new Date().toISOString()
+    };
   } catch (error) {
-    console.error('Error deleting expense: ', error);
+    console.error('Error calculating monthly summary: ', error);
     throw error;
   }
-}; 
+};

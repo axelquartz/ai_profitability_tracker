@@ -1,22 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { format } from 'date-fns';
-import { addExpense, getExpenses, deleteExpense } from './firebaseService';
+import { addExpense, getExpenses } from './firebaseService';
 
-function ExpensesTracker() {
+function ExpensesTracker({ userId }) {
   const [expenses, setExpenses] = useState([]);
-  const [newExpense, setNewExpense] = useState('');
-  const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [newExpense, setNewExpense] = useState({
+    name: '',
+    amount: 0,
+    category: ''
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     loadExpenses();
-  }, []);
+  }, [userId]);
 
   const loadExpenses = async () => {
     try {
       setLoading(true);
-      const expenseData = await getExpenses();
+      const expenseData = await getExpenses(userId);
       setExpenses(expenseData);
       setError(null);
     } catch (err) {
@@ -29,32 +31,15 @@ function ExpensesTracker() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!newExpense) return;
+    if (!newExpense.name || !newExpense.amount) return;
 
     try {
-      const newEntry = {
-        expense: Number(newExpense),
-        date: date,
-      };
-
-      await addExpense(newEntry);
-      await loadExpenses(); // Reload the data
-      setNewExpense('');
-      setError(null);
+      await addExpense(userId, newExpense);
+      await loadExpenses();
+      setNewExpense({ name: '', amount: 0, category: '' });
     } catch (err) {
       setError('Failed to add expense');
       console.error('Error adding expense:', err);
-    }
-  };
-
-  const handleDelete = async (id) => {
-    try {
-      await deleteExpense(id);
-      await loadExpenses(); // Reload the data
-      setError(null);
-    } catch (err) {
-      setError('Failed to delete expense');
-      console.error('Error deleting expense:', err);
     }
   };
 
@@ -63,68 +48,60 @@ function ExpensesTracker() {
   }
 
   return (
-    <div className="app">
+    <div className="expenses-tracker">
       <h1>Expenses Tracker</h1>
       
       {error && <div className="error-message">{error}</div>}
       
       <form onSubmit={handleSubmit} className="input-form">
+        <h2>Add Expense</h2>
         <div className="form-group">
-          <label htmlFor="expense">Expense Amount:</label>
+          <label>Expense Name:</label>
+          <input
+            type="text"
+            value={newExpense.name}
+            onChange={(e) => setNewExpense({...newExpense, name: e.target.value})}
+            required
+          />
+        </div>
+        <div className="form-group">
+          <label>Amount:</label>
           <input
             type="number"
-            id="expense"
-            value={newExpense}
-            onChange={(e) => setNewExpense(e.target.value)}
+            min="0"
+            step="0.01"
+            value={newExpense.amount}
+            onChange={(e) => setNewExpense({...newExpense, amount: Number(e.target.value)})}
             required
           />
         </div>
-        
         <div className="form-group">
-          <label htmlFor="date">Date:</label>
+          <label>Category:</label>
           <input
-            type="date"
-            id="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            required
+            type="text"
+            value={newExpense.category}
+            onChange={(e) => setNewExpense({...newExpense, category: e.target.value})}
           />
         </div>
-        
-        <button type="submit">Add Entry</button>
+        <button type="submit">Add Expense</button>
       </form>
 
-      <div className="entries-list">
-        <h2>Expense Entries</h2>
+      <div className="expenses-list">
+        <h2>Recent Expenses</h2>
         {expenses.length === 0 ? (
-          <p>No entries yet. Add your first expense entry above!</p>
+          <p>No expenses yet</p>
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Expense</th>
-                <th>Time Added</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {expenses.map((entry) => (
-                <tr key={entry.id}>
-                  <td>{entry.date}</td>
-                  <td>${entry.expense}</td>
-                  <td>{new Date(entry.timestamp).toLocaleTimeString()}</td>
-                  <td>
-                    <button onClick={() => handleDelete(entry.id)}>Delete</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <ul>
+            {expenses.slice(0, 10).map(expense => (
+              <li key={expense.id}>
+                {expense.name} - ${expense.amount} {expense.category && `(${expense.category})`}
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </div>
   );
 }
 
-export default ExpensesTracker; 
+export default ExpensesTracker;

@@ -1,12 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import RevenueTracker from './revenue_tracker';
 import ExpensesTracker from './expenses_tracker';
 import ProfitabilitySummary from './ProfitabilitySummary';
 import { DarkModeProvider } from './DarkModeContext';
 import DarkModeToggle from './DarkModeToggle';
+import { auth } from './firebase';
 
 function App() {
   const [activeTracker, setActiveTracker] = useState('revenue');
+  const [userId, setUserId] = useState(null);
+
+  // In a real app, you would set userId after authentication
+  // For now we'll use a hardcoded value for demonstration
+  useEffect(() => {
+    // This would normally come from auth.currentUser.uid
+    setUserId('demo-user'); 
+  }, []);
+
+  if (!userId) {
+    return <div>Loading user data...</div>;
+  }
 
   return (
     <DarkModeProvider>
@@ -31,15 +44,17 @@ function App() {
         </div>
 
         <div className="tracker-section">
-          {activeTracker === 'revenue' ? <RevenueTracker /> : <ExpensesTracker />}
+          {activeTracker === 'revenue' ? 
+            <RevenueTracker userId={userId} /> : 
+            <ExpensesTracker userId={userId} />}
         </div>
 
         <div className="summary-section">
-          <ProfitabilitySummary />
+          <ProfitabilitySummary userId={userId} />
         </div>
       </div>
     </DarkModeProvider>
   );
 }
 
-export default App; 
+export default App;

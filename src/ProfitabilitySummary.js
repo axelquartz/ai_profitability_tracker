@@ -1,42 +1,37 @@
 import React, { useState, useEffect } from 'react';
-import { getRevenues, getExpenses } from './firebaseService';
+import { getSales, getExpenses, calculateMonthlySummary } from './firebaseService';
 import ProfitGrowthChart from './ProfitGrowthChart';
 import ProfitabilityPercentageChart from './ProfitabilityPercentageChart';
 
-function ProfitabilitySummary() {
-  const [revenues, setRevenues] = useState([]);
-  const [expenses, setExpenses] = useState([]);
-  const [totalRevenue, setTotalRevenue] = useState(0);
-  const [totalExpenses, setTotalExpenses] = useState(0);
-  const [netProfit, setNetProfit] = useState(0);
-  const [profitabilityPercentage, setProfitabilityPercentage] = useState(0);
+function ProfitabilitySummary({ userId }) {
+  const [summary, setSummary] = useState({
+    totalRevenue: 0,
+    totalExpenses: 0,
+    netProfit: 0,
+    profitabilityPercentage: 0
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [userId]);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const [revenueData, expenseData] = await Promise.all([
-        getRevenues(),
-        getExpenses()
-      ]);
+      const currentDate = new Date();
+      const monthYear = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
       
-      setRevenues(revenueData);
-      setExpenses(expenseData);
-
-      // Calculate totals
-      const revenueTotal = revenueData.reduce((sum, entry) => sum + Number(entry.revenue), 0);
-      const expenseTotal = expenseData.reduce((sum, entry) => sum + Number(entry.expense), 0);
-      const profit = revenueTotal - expenseTotal;
-
-      setTotalRevenue(revenueTotal);
-      setTotalExpenses(expenseTotal);
-      setNetProfit(profit);
-      setProfitabilityPercentage(revenueTotal > 0 ? (profit / revenueTotal) * 100 : 0);
+      const monthlySummary = await calculateMonthlySummary(userId, monthYear);
+      
+      setSummary({
+        totalRevenue: monthlySummary.totalRevenue,
+        totalExpenses: monthlySummary.totalExpenses,
+        netProfit: monthlySummary.totalProfit,
+        profitabilityPercentage: monthlySummary.totalRevenue > 0 ? 
+          (monthlySummary.totalProfit / monthlySummary.totalRevenue) * 100 : 0
+      });
       
       setError(null);
     } catch (err) {
@@ -61,28 +56,28 @@ function ProfitabilitySummary() {
       <div className="summary-grid">
         <div className="summary-card revenue">
           <h3>Total Revenue</h3>
-          <p className="amount">${totalRevenue.toFixed(2)}</p>
+          <p className="amount">${summary.totalRevenue.toFixed(2)}</p>
         </div>
         <div className="summary-card expenses">
           <h3>Total Expenses</h3>
-          <p className="amount">${totalExpenses.toFixed(2)}</p>
+          <p className="amount">${summary.totalExpenses.toFixed(2)}</p>
         </div>
-        <div className={`summary-card profit ${netProfit >= 0 ? 'positive' : 'negative'}`}>
+        <div className={`summary-card profit ${summary.netProfit >= 0 ? 'positive' : 'negative'}`}>
           <h3>Net Profit</h3>
-          <p className="amount">${netProfit.toFixed(2)}</p>
+          <p className="amount">${summary.netProfit.toFixed(2)}</p>
         </div>
-        <div className={`summary-card percentage ${profitabilityPercentage >= 0 ? 'positive' : 'negative'}`}>
+        <div className={`summary-card percentage ${summary.profitabilityPercentage >= 0 ? 'positive' : 'negative'}`}>
           <h3>Profitability</h3>
-          <p className="amount">{profitabilityPercentage.toFixed(1)}%</p>
+          <p className="amount">{summary.profitabilityPercentage.toFixed(1)}%</p>
         </div>
       </div>
 
       <div className="charts-grid">
-        <ProfitGrowthChart />
-        <ProfitabilityPercentageChart />
+        <ProfitGrowthChart userId={userId} />
+        <ProfitabilityPercentageChart userId={userId} />
       </div>
     </div>
   );
 }
 
-export default ProfitabilitySummary; 
+export default ProfitabilitySummary;
